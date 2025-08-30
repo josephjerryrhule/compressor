@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs-extra');
 const { spawn, execSync } = require('child_process');
 const express = require('express');
+const http = require('http');
 const os = require('os');
 
 // Determine if we're in development or production
@@ -35,7 +36,12 @@ function startBackendServer() {
   // Log additional info for troubleshooting
   console.log('Uploads directory:', uploadsDir);
   console.log('Directory exists:', fs.existsSync(uploadsDir));
-  console.log('Directory is writable:', fs.accessSync(uploadsDir, fs.constants.W_OK) === undefined);
+  try {
+    fs.accessSync(uploadsDir, fs.constants.W_OK);
+    console.log('Directory is writable: true');
+  } catch (err) {
+    console.log('Directory is writable: false', err);
+  }
 
   // Start the backend server
   const serverPath = path.join(backendPath, 'server.js');
@@ -76,17 +82,61 @@ function startBackendServer() {
   });
 }
 
-// Function to start a static server for the frontend in production
-function startFrontendServer() {
+  // Set up proxy for API requests when in production (Electron)
   if (!isDev) {
-    const frontendPath = path.join(process.resourcesPath, 'frontend');
-    const frontendServer = express();
-    frontendServer.use(express.static(frontendPath));
-    frontendServer.listen(frontendPort, () => {
+    // Create a simple Express server for the frontend
+    const frontendApp = express();
+    
+    // Proxy API requests to the backend
+    frontendApp.use('/api', (req, res, next) => {
+      const backendUrl = `http://localhost:${serverPort}${req.url}`;
+      console.log(`Proxying API request: ${req.url} to ${backendUrl}`);
+      
+      // Create proxy request
+      const proxyReq = http.request(
+        backendUrl,
+        {
+          method: req.method,
+          headers: req.headers
+        },
+        (proxyRes) => {
+          // Copy status code
+          res.statusCode = proxyRes.statusCode;
+          
+          // Copy headers
+          Object.keys(proxyRes.headers).forEach(key => {
+            res.setHeader(key, proxyRes.headers[key]);
+          });
+          
+          // Pipe response
+          proxyRes.pipe(res);
+        }
+      );
+      
+      // Forward request body
+      req.pipe(proxyReq);
+      
+      // Handle errors
+      proxyReq.on('error', (err) => {
+        console.error('Proxy request error:', err);
+        res.statusCode = 500;
+        res.end('Proxy Error');
+      });
+    });
+    
+    // Serve static frontend files
+    frontendApp.use(express.static(path.join(process.resourcesPath, 'frontend')));
+    
+    // Handle other routes by serving index.html
+    frontendApp.get('*', (req, res) => {
+      res.sendFile(path.join(process.resourcesPath, 'frontend', 'index.html'));
+    });
+    
+    // Start the frontend server
+    frontendApp.listen(frontendPort, () => {
       console.log(`Frontend server running on port ${frontendPort}`);
     });
   }
-}
 
 // Create the browser window
 function createWindow() {
@@ -127,9 +177,6 @@ function createWindow() {
 app.whenReady().then(() => {
   // Start the backend server
   startBackendServer();
-  
-  // Start the frontend server (in production)
-  startFrontendServer();
   
   // Create the main window
   createWindow();

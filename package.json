@@ -10,6 +10,9 @@
     "frontend": "cd frontend && npm run dev",
     "dev": "npm run check && concurrently \"npm run backend\" \"npm run frontend\"",
     "docker": "docker-compose up --build",
+    "build-frontend": "cd frontend && npm run build && npm run export",
+    "install-electron": "cd electron && npm install",
+    "build-mac-app": "npm run build-frontend && npm run install-electron && cd electron && npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
