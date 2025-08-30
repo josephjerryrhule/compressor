@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to ensure all backend dependencies are installed correctly
+# Script to ensure all dependencies are installed correctly
 
 echo "Checking and installing backend dependencies..."
 
@@ -31,6 +31,18 @@ for dep in "${dependencies[@]}"; do
     echo "✅ $dep is installed."
   fi
 done
+
+# Install frontend dependencies
+echo "Installing frontend dependencies..."
+cd frontend
+npm install
+cd ..
+
+# Install Electron dependencies for Mac app
+echo "Installing Electron dependencies for Mac app..."
+cd electron
+npm install
+cd ..
 
 echo "All dependencies checked and installed."
 echo "Now running server configuration check..."
