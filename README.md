@@ -33,6 +33,29 @@ A web application for compressing and converting images and videos with optimize
 
 ## Getting Started
 
+### Prerequisites
+
+- Node.js 18+ installed
+- FFmpeg installed (automatically included via npm dependencies)
+- For development: Git
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/media-compressor.git
+cd media-compressor
+
+# Install dependencies for all components
+npm install
+npm run install-deps
+
+# OR manually install dependencies
+npm install
+cd frontend && npm install
+cd ../backend && npm install
+```
+
 ### Running with Docker
 
 ```bash
@@ -43,12 +66,7 @@ npm run docker
 ### Running Locally
 
 ```bash
-# Install dependencies
-npm install
-cd frontend && npm install
-cd ../backend && npm install
-
-# Run in development mode (concurrent backend + frontend)
+# Start the development server (concurrent backend + frontend)
 npm run dev
 ```
 
