@@ -1,0 +1,31 @@
+{
+  "name": "compressor",
+  "version": "1.0.0",
+  "description": "Web app for compressing images and videos with WebP conversion and quality options",
+  "main": "index.js",
+  "scripts": {
+    "setup": "./install-deps.sh",
+    "check": "node backend/check-server.js",
+    "backend": "cd backend && node server.js",
+    "frontend": "cd frontend && npm run dev",
+    "dev": "npm run check && concurrently \"npm run backend\" \"npm run frontend\"",
+    "docker": "docker-compose up --build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "axios": "^1.11.0",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "ffmpeg-static": "^5.2.0",
+    "multer": "^2.0.2",
+    "sharp": "^0.34.3"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

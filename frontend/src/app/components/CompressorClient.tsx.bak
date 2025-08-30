@@ -1,0 +1,493 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+type MediaFile = File;
+type MediaType = 'image' | 'video';
+type ResultFile = {
+  originalName: string;
+  outputName: string;
+  originalSize: number;
+  compressedSize: number;
+  outputPath: string;
+};
+
+export default function CompressorClient() {
+  const [fi              <div key={i} className="group bg-white overflow-hidden shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                  <div className="aspect-square bg-gray-100 relative">s, setFiles] = useState<MediaFile[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [results, setResults] = useState<ResultFile[]>([]);
+  const [quality, setQuality] = useState<number>(80);
+  const [lossless, setLossless] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [processingFiles, setProcessingFiles] = useState<{[key: string]: boolean}>({});
+  const [mediaType, setMediaType] = useState<MediaType>('image');
+  const [videoSettings, setVideoSettings] = useState({
+    bitrate: '2M',
+    resolution: '720',
+    framerate: '30',
+    codec: 'h264'
+  });
+  const [dragActive, setDragActive] = useState<boolean>(false);
+
+  // Handle file selection
+  const handleFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files || []);
+    if (selected.length > 0) {
+      processFiles(selected);
+    }
+  };
+
+  // Handle drag events
+  const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  // Handle drop event
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const selected = Array.from(e.dataTransfer.files);
+      processFiles(selected);
+    }
+  };
+  
+  // Process files (common code for both drag-drop and file input)
+  const processFiles = (selected: File[]) => {
+    // Create a map to track which files are being processed
+    const processingMap = { ...processingFiles };
+    
+    // Store the files and create previews
+    setFiles(prevFiles => [...prevFiles, ...selected]);
+    setPreviews(prevPreviews => [
+      ...prevPreviews,
+      ...selected.map(file => URL.createObjectURL(file))
+    ]);
+    
+    // Auto-detect media type from first file
+    if (selected.length > 0) {
+      const firstType = selected[0].type.split('/')[0];
+      setMediaType(firstType === 'video' ? 'video' : 'image');
+    }
+    
+    // Mark all new files as processing and start compression
+    selected.forEach(file => {
+      processingMap[file.name] = true;
+    });
+    setProcessingFiles(processingMap);
+    
+    // Begin compression immediately for each file
+    selected.forEach(file => compressFile(file));
+  };
+
+  // Upload and compress a single file
+  const compressFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append('files', file);
+    
+    let endpoint = '';
+    
+    if (file.type.startsWith('image')) {
+      endpoint = 'http://localhost:4000/api/compress/image';
+      formData.append('quality', String(quality));
+      formData.append('lossless', String(lossless));
+    } else {
+      endpoint = 'http://localhost:4000/api/compress/video';
+      formData.append('bitrate', videoSettings.bitrate);
+      formData.append('resolution', videoSettings.resolution);
+      formData.append('framerate', videoSettings.framerate);
+      formData.append('codec', videoSettings.codec);
+    }
+    
+    try {
+      const res = await axios.post(endpoint, formData, {
+        onUploadProgress: (progressEvent) => {
+          console.log(`Upload Progress for ${file.name}: ${Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1))}%`);
+        }
+      });
+      
+      // Add new result to results list
+      if (res.data.results && res.data.results.length > 0) {
+        const newResult = res.data.results[0];
+        setResults(prevResults => [...prevResults, newResult]);
+      }
+      
+      // Remove file from processing state
+      setProcessingFiles(prev => {
+        const updated = {...prev};
+        delete updated[file.name];
+        return updated;
+      });
+      
+    } catch (err) {
+      console.error(`Error compressing ${file.name}:`, err);
+      // Remove file from processing state even if it failed
+      setProcessingFiles(prev => {
+        const updated = {...prev};
+        delete updated[file.name];
+        return updated;
+      });
+    }
+  };
+
+  // Batch compress all files (only used if auto-compression fails)
+  const compressMedia = async () => {
+    setLoading(true);
+    const unprocessedFiles = files.filter(file => processingFiles[file.name]);
+    
+    if (unprocessedFiles.length === 0) {
+      setLoading(false);
+      return;
+    }
+    
+    const promises = unprocessedFiles.map(file => compressFile(file));
+    await Promise.all(promises);
+    setLoading(false);
+  };
+
+  // Format file size to readable format
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    else return (bytes / 1048576).toFixed(1) + ' MB';
+  };
+
+  // Download ZIP
+  const downloadZip = async () => {
+    const filePaths = results.map(r => r.outputPath);
+    const res = await axios.post('http://localhost:4000/api/download/zip', { files: filePaths }, { responseType: 'blob' });
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'compressed.zip');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center p-6">
+      <h1 className="text-3xl font-bold mb-2 text-gray-800">Media Compressor</h1>
+      <p className="text-gray-500 mb-8 text-center max-w-lg">Optimize images and videos with WebP conversion and advanced compression</p>
+      
+      {/* Upload Area */}
+      <div 
+        className={`w-full max-w-2xl bg-white shadow-md p-8 mb-8 transition-all
+          ${dragActive ? 'border-2 border-blue-500 bg-blue-50' : 'border border-gray-200'}`}
+        onDragEnter={handleDrag}
+        onDragLeave={handleDrag}
+        onDragOver={handleDrag}
+        onDrop={handleDrop}
+      >
+        {/* File Upload */}
+        <div className="mb-6 text-center">
+          <div className="mb-4 flex justify-center">
+            <div className="w-20 h-20 bg-blue-50 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+          </div>
+          <h2 className="text-xl font-medium mb-2 text-gray-700">Drop files here or click to upload</h2>
+          <p className="text-sm text-gray-500 mb-4">Support for images (JPEG, PNG, GIF) and videos (MP4, MOV, WebM)</p>
+          <label className="cursor-pointer">
+            <input type="file" multiple accept="image/*,video/*" onChange={handleFiles} className="hidden" />
+            <span className="inline-block px-6 py-2.5 bg-blue-600 text-white font-medium text-sm hover:bg-blue-700 transition-colors">
+              Select Files
+            </span>
+          </label>
+        </div>
+        
+        {/* File Type Selector */}
+        {files.length > 0 && (
+          <>
+            <div className="flex justify-center mb-6 bg-gray-50 p-2">
+              <button 
+                className={`px-5 py-2 font-medium transition-colors ${mediaType === 'image' 
+                  ? 'bg-blue-600 text-white shadow-sm' 
+                  : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                onClick={() => setMediaType('image')}
+              >
+                Image
+              </button>
+              <button 
+                className={`px-5 py-2 ml-2 font-medium transition-colors ${mediaType === 'video' 
+                  ? 'bg-blue-600 text-white shadow-sm' 
+                  : 'bg-white text-gray-700 hover:bg-gray-100'}`}
+                onClick={() => setMediaType('video')}
+              >
+                Video
+              </button>
+            </div>
+            
+            {/* Compression Settings */}
+            <div className="mb-6 bg-gray-50 p-4">
+              <h3 className="font-medium mb-3 text-gray-700">Compression Settings</h3>
+              
+              {mediaType === 'image' ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <label className="text-sm text-gray-600">Quality: {quality}%</label>
+                      <span className="text-xs text-gray-500">{quality < 65 ? 'Smaller file' : quality > 85 ? 'Better quality' : 'Balanced'}</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min={50} 
+                      max={100} 
+                      value={quality} 
+                      onChange={e => setQuality(Number(e.target.value))} 
+                      className="w-full h-2 bg-gray-200 appearance-none cursor-pointer accent-blue-600"
+                    />
+                  </div>
+                  <div className="flex items-center">
+                    <input 
+                      type="checkbox" 
+                      id="lossless" 
+                      checked={lossless} 
+                      onChange={e => setLossless(e.target.checked)} 
+                      className="w-4 h-4 accent-blue-600"
+                    />
+                    <label htmlFor="lossless" className="ml-2 text-sm text-gray-700">Lossless compression (larger file, perfect quality)</label>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Bitrate</label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      value={videoSettings.bitrate}
+                      onChange={(e) => setVideoSettings({...videoSettings, bitrate: e.target.value})}
+                    >
+                      <option value="1M">1 Mbps (Smaller file)</option>
+                      <option value="2M">2 Mbps (Balanced)</option>
+                      <option value="4M">4 Mbps (Better quality)</option>
+                      <option value="6M">6 Mbps (High quality)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Resolution</label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      value={videoSettings.resolution}
+                      onChange={(e) => setVideoSettings({...videoSettings, resolution: e.target.value})}
+                    >
+                      <option value="480">480p</option>
+                      <option value="720">720p</option>
+                      <option value="1080">1080p</option>
+                      <option value="original">Original (no resize)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Framerate</label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      value={videoSettings.framerate}
+                      onChange={(e) => setVideoSettings({...videoSettings, framerate: e.target.value})}
+                    >
+                      <option value="24">24 fps</option>
+                      <option value="30">30 fps</option>
+                      <option value="60">60 fps</option>
+                      <option value="original">Original</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600 mb-1">Codec</label>
+                    <select 
+                      className="w-full p-2 border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                      value={videoSettings.codec}
+                      onChange={(e) => setVideoSettings({...videoSettings, codec: e.target.value})}
+                    >
+                      <option value="h264">H.264 (MP4, best compatibility)</option>
+                      <option value="vp9">VP9 (WebM, smaller file)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Compress Button */}
+            <div className="flex justify-center">
+              <button 
+                onClick={compressMedia} 
+                disabled={loading || files.length === 0} 
+                className={`px-6 py-3 font-medium text-white shadow-md transition-colors ${
+                  loading ? 'bg-gray-500' : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Compressing...
+                  </span>
+                ) : 'Compress & Convert'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {/* File Previews & Results */}
+      {files.length > 0 && (
+        <div className="w-full max-w-2xl mb-8">
+          <h2 className="text-xl font-medium mb-3 text-gray-700">Files ({files.length})</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+            {previews.map((src, i) => {
+              const file = files[i];
+              const result = results.find(r => r.originalName === file.name);
+              const isProcessing = processingFiles[file.name];
+              
+              return (
+                <div key={i} className="group bg-white overflow-hidden shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+                  <div className="aspect-square bg-gray-100 relative">
+                    {file?.type.startsWith('image/') ? (
+                      <img src={src} alt="preview" className="w-full h-full object-contain" />
+                    ) : (
+                      <video src={src} className="w-full h-full object-contain" controls />
+                    )}
+                    
+                    {/* Processing overlay */}
+                    {isProcessing && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                        <svg className="animate-spin h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="p-2 text-xs">
+                    <div className="truncate font-medium text-gray-700">{file?.name}</div>
+                    <div className="text-gray-500">{formatFileSize(file?.size || 0)}</div>
+                    
+                    {/* Compressed result */}
+                    {result && (
+                      <>
+                        <div className="h-1 w-full bg-gray-200 mt-2 overflow-hidden">
+                          <div 
+                            className="h-full bg-green-500" 
+                            style={{ width: `${100 - Math.min(((1 - result.compressedSize / result.originalSize) * 100), 100)}%` }}
+                          ></div>
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-green-600 font-bold">{((1 - result.compressedSize / result.originalSize) * 100).toFixed(1)}%</span>
+                          <span>{formatFileSize(result.compressedSize)}</span>
+                        </div>
+                        <a 
+                          href={`http://localhost:4000/uploads/${result.outputName}`} 
+                          download={result.outputName} 
+                          className="block text-center text-white bg-blue-600 text-xs py-1 px-2 mt-1 hover:bg-blue-700"
+                        >
+                          Download
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* ZIP Download button (only if there are results) */}
+          {results.length > 0 && (
+            <div className="flex justify-center mt-4">
+              <button 
+                onClick={downloadZip}
+                className="flex items-center px-4 py-2 bg-green-600 text-white hover:bg-green-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download All (ZIP)
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Results */}
+      {results.length > 0 && (
+        <div className="w-full max-w-2xl mb-8 bg-white rounded-lg shadow-md p-6 border border-gray-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-medium text-gray-700">Compressed Files</h2>
+            <button 
+              onClick={downloadZip} 
+              className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download All (ZIP)
+            </button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {results.map((r, i) => {
+              const savingsPercent = ((1 - r.compressedSize / r.originalSize) * 100);
+              const isGoodSaving = savingsPercent > 25;
+              
+              return (
+                <div key={i} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="truncate text-sm font-medium text-gray-700 mr-2">{r.outputName}</div>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${isGoodSaving ? 'bg-green-500' : 'bg-yellow-500'}`} 
+                        style={{ width: `${100 - Math.min(savingsPercent, 100)}%` }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between text-xs mt-1">
+                      <span className="text-gray-500">Original: {formatFileSize(r.originalSize)}</span>
+                      <span className="text-gray-500">New: {formatFileSize(r.compressedSize)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between items-center">
+                    <div className="text-sm">
+                      <span className={`font-bold ${isGoodSaving ? 'text-green-600' : 'text-yellow-600'}`}>
+                        {savingsPercent.toFixed(1)}% smaller
+                      </span>
+                    </div>
+                    <a 
+                      href={`http://localhost:4000/uploads/${r.outputName}`} 
+                      download={r.outputName} 
+                      className="flex items-center text-sm bg-blue-600 text-white py-1.5 px-3 rounded hover:bg-blue-700 transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      
+      {/* Footer */}
+      <div className="text-center text-gray-500 text-sm mt-auto pt-6">
+        <p>Compress images and videos with optimized quality and file size</p>
+        <p className="mt-1">All processing happens locally - your files never leave your device</p>
+      </div>
+    </div>
+  );
+}
