@@ -81,6 +81,15 @@ export default function CompressorClient() {
     // Users will need to click the "Compress & Convert" button
   };
 
+  // Determine the API base URL dynamically
+  const getApiBaseUrl = () => {
+    // Check if we're in Electron environment by looking for a global variable
+    if (typeof window !== 'undefined' && (window as any).isElectron) {
+      return '/api'; // In Electron, the backend is served from the same origin
+    }
+    return 'http://localhost:4000/api'; // In development
+  };
+  
   // Upload and compress a single file
   const compressFile = async (file: File) => {
     // Create a safe filename by removing problematic characters
@@ -97,13 +106,15 @@ export default function CompressorClient() {
     }
     
     let endpoint = '';
+    // Use the correct API URL based on environment
+    const apiBaseUrl = getApiBaseUrl();
     
     if (file.type.startsWith('image')) {
-      endpoint = 'http://localhost:4000/api/compress/image';
+      endpoint = `${apiBaseUrl}/compress/image`;
       formData.append('quality', String(quality));
       formData.append('lossless', String(lossless));
     } else {
-      endpoint = 'http://localhost:4000/api/compress/video';
+      endpoint = `${apiBaseUrl}/compress/video`;
       formData.append('bitrate', videoSettings.bitrate);
       formData.append('resolution', videoSettings.resolution);
       formData.append('framerate', videoSettings.framerate);
@@ -113,7 +124,7 @@ export default function CompressorClient() {
     try {
       // First check if server is running with a health check
       try {
-        await axios.get('http://localhost:4000/api/health');
+        await axios.get(`${apiBaseUrl}/health`);
       } catch (healthErr) {
         console.error('Backend server not available:', healthErr);
         throw new Error('Backend server not responding. Please make sure it is running on port 4000.');
@@ -219,7 +230,8 @@ export default function CompressorClient() {
     
     // Check if backend server is running first
     try {
-      await axios.get('http://localhost:4000/api/health');
+      const apiBaseUrl = getApiBaseUrl();
+      await axios.get(`${apiBaseUrl}/health`);
     } catch (err) {
       setLoading(false);
       alert('Backend server not responding. Please make sure it is running on port 4000.');
@@ -292,7 +304,9 @@ export default function CompressorClient() {
   // Download ZIP
   const downloadZip = async () => {
     const filePaths = results.map(r => r.outputPath);
-    const res = await axios.post('http://localhost:4000/api/download/zip', { files: filePaths }, { responseType: 'blob' });
+    const apiBaseUrl = getApiBaseUrl();
+    const baseUrl = apiBaseUrl.replace('/api', '');
+    const res = await axios.post(`${apiBaseUrl}/download/zip`, { files: filePaths }, { responseType: 'blob' });
     const url = window.URL.createObjectURL(new Blob([res.data]));
     const link = document.createElement('a');
     link.href = url;
@@ -560,13 +574,13 @@ export default function CompressorClient() {
                                     <span>{formatFileSize(result.compressedSize)}</span>
                                   </div>
                                   <a 
-                                    href={`http://localhost:4000/uploads/${result.outputName}`} 
+                                    href={`${getApiBaseUrl().replace('/api', '')}/uploads/${result.outputName}`} 
                                     download={result.outputName}
                                     onClick={(e) => {
                                       // Force download by programmatically creating an anchor with download attribute
                                       e.preventDefault();
                                       const link = document.createElement('a');
-                                      link.href = `http://localhost:4000/uploads/${result.outputName}`;
+                                      link.href = `${getApiBaseUrl().replace('/api', '')}/uploads/${result.outputName}`;
                                       link.setAttribute('download', result.outputName);
                                       document.body.appendChild(link);
                                       link.click();
@@ -630,13 +644,13 @@ export default function CompressorClient() {
                               </div>
                             </div>
                             <a 
-                              href={`http://localhost:4000/uploads/${r.outputName}`} 
+                              href={`${getApiBaseUrl().replace('/api', '')}/uploads/${r.outputName}`} 
                               download={r.outputName}
                               onClick={(e) => {
                                 // Force download by programmatically creating an anchor with download attribute
                                 e.preventDefault();
                                 const link = document.createElement('a');
-                                link.href = `http://localhost:4000/uploads/${r.outputName}`;
+                                link.href = `${getApiBaseUrl().replace('/api', '')}/uploads/${r.outputName}`;
                                 link.setAttribute('download', r.outputName);
                                 document.body.appendChild(link);
                                 link.click();
