@@ -13,9 +13,41 @@
     "appId": "com.mediacompressor.app",
     "mac": {
       "category": "public.app-category.productivity",
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "icons/icon.png",
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "entitlements.plist",
+      "entitlementsInherit": "entitlements.plist",
+      "extendInfo": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
+        "LSUIElement": false,
+        "NSHumanReadableCopyright": "Copyright © 2025 Joseph Rhule",
+        "CFBundleDocumentTypes": [
+          {
+            "CFBundleTypeName": "Image",
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": [
+              "public.image"
+            ]
+          },
+          {
+            "CFBundleTypeName": "Video",
+            "CFBundleTypeRole": "Editor",
+            "LSHandlerRank": "Alternate",
+            "LSItemContentTypes": [
+              "public.video"
+            ]
+          }
+        ]
+      }
     },
     "electronVersion": "28.1.0",
     "files": [
@@ -36,22 +68,40 @@
       {
         "from": "../backend",
         "to": "backend",
-        "filter": ["**/*", "!node_modules/**/*", "!uploads/**/*"]
+        "filter": [
+          "**/*",
+          "!node_modules/**/*",
+          "!uploads/**/*"
+        ]
       },
       {
         "from": "../frontend/out",
         "to": "frontend"
+      },
+      {
+        "from": "../node_modules/ffmpeg-static/ffmpeg",
+        "to": "ffmpeg"
       }
-    ]
+    ],
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**/*"
+    ],
+    "afterSign": "notarize.js"
   },
   "author": "Joseph Rhule",
   "license": "MIT",
   "devDependencies": {
     "electron": "^28.1.0",
-    "electron-builder": "^24.9.1"
+    "electron-builder": "^24.9.1",
+    "electron-notarize": "^1.2.2"
   },
   "dependencies": {
+    "@electron/notarize": "^3.0.2",
+    "archiver": "^7.0.1",
+    "dotenv": "^17.2.1",
+    "electron-log": "^5.0.1",
     "express": "^4.18.2",
+    "ffmpeg-static": "^5.2.0",
     "fs-extra": "^11.2.0",
     "http-proxy-middleware": "^2.0.6"
   }

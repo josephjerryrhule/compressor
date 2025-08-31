@@ -2,18 +2,83 @@ const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const sharp = require('sharp');
-const ffmpegPath = require('ffmpeg-static');
+const path = require('path');
+const fs = require('fs');
 const archiver = require('archiver');
 const child_process = require('child_process');
 const { spawn } = child_process;
-const path = require('path');
-const fs = require('fs');
+
+// Determine ffmpeg path - support multiple scenarios
+let ffmpegPath;
+try {
+  // First try the standard path from ffmpeg-static
+  ffmpegPath = require('ffmpeg-static');
+  console.log('Using ffmpeg from ffmpeg-static:', ffmpegPath);
+} catch (err) {
+  console.error('Error loading ffmpeg-static:', err.message);
+  
+  // Check if we're in Electron's packaged environment
+  if (process.resourcesPath) {
+    // Look for ffmpeg in resources folder
+    const resourceFFmpegPath = path.join(process.resourcesPath, 'ffmpeg');
+    if (fs.existsSync(resourceFFmpegPath)) {
+      ffmpegPath = resourceFFmpegPath;
+      console.log('Using bundled ffmpeg from resources:', ffmpegPath);
+    } else {
+      // Try macOS common locations
+      const macOSPaths = [
+        '/usr/local/bin/ffmpeg',
+        '/usr/bin/ffmpeg',
+        '/opt/homebrew/bin/ffmpeg'
+      ];
+      
+      for (const p of macOSPaths) {
+        if (fs.existsSync(p)) {
+          ffmpegPath = p;
+          console.log('Using system ffmpeg:', ffmpegPath);
+          break;
+        }
+      }
+    }
+  }
+  
+  // Last resort - try to find ffmpeg in PATH
+  if (!ffmpegPath) {
+    try {
+      const { execSync } = require('child_process');
+      ffmpegPath = execSync('which ffmpeg', { encoding: 'utf8' }).trim();
+      console.log('Using system ffmpeg found in PATH:', ffmpegPath);
+    } catch (pathErr) {
+      console.error('No ffmpeg found in PATH:', pathErr.message);
+      console.error('Video compression will not work!');
+      ffmpegPath = null;
+    }
+  }
+}
+
+// Check the permissions of ffmpeg and make it executable if needed
+if (ffmpegPath && fs.existsSync(ffmpegPath)) {
+  try {
+    fs.chmodSync(ffmpegPath, 0o755);
+    console.log('Made ffmpeg executable');
+  } catch (err) {
+    console.warn('Failed to set ffmpeg permissions:', err.message);
+  }
+}
 
 const app = express();
-const uploadsDir = path.join(__dirname, 'uploads');
+
+// Define the uploads directory - use environment variable if provided (for Electron app)
+const uploadsDir = process.env.UPLOADS_DIR || path.join(__dirname, 'uploads');
+
 // Create uploads directory if it doesn't exist
 if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log(`Created uploads directory: ${uploadsDir}`);
+  } catch (err) {
+    console.error(`Error creating uploads directory: ${err.message}`);
+  }
 }
 const upload = multer({ dest: uploadsDir });
 app.use(cors());

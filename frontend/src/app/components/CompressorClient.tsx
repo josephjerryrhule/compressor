@@ -3,6 +3,46 @@
 import React, { useState, useEffect } from 'react';
 import axios, { AxiosError } from 'axios';
 
+// Function to determine API endpoint (Electron or web)
+const getAPIEndpoint = () => {
+  // Check if we're in Electron
+  if (typeof window !== 'undefined' && (window as any).isElectron) {
+    return 'http://localhost:4000/api';
+  }
+  
+  // For Netlify deployments, use the Netlify Function
+  if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
+    return '/.netlify/functions/api-proxy';
+  }
+  
+  // For production web environment, use the environment variable
+  if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+    return `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`;
+  }
+  
+  // Fallback for development
+  return '/api';
+};
+
+// Function to handle failed requests with retries
+const apiRequestWithRetry = async (url: string, method: string, data: any, retries = 3, delay = 1000) => {
+  try {
+    return await axios({
+      url,
+      method,
+      data,
+      timeout: 30000, // 30 second timeout
+    });
+  } catch (error) {
+    if (retries > 0) {
+      console.log(`Request failed, retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return apiRequestWithRetry(url, method, data, retries - 1, delay * 1.5);
+    }
+    throw error;
+  }
+};
+
 type MediaFile = File;
 type MediaType = 'image' | 'video';
 type ResultFile = {
@@ -85,9 +125,40 @@ export default function CompressorClient() {
   const getApiBaseUrl = () => {
     // Check if we're in Electron environment by looking for a global variable
     if (typeof window !== 'undefined' && (window as any).isElectron) {
-      return '/api'; // In Electron, the backend is served from the same origin
+      return 'http://localhost:4000/api'; // In Electron, always use the localhost URL
     }
-    return 'http://localhost:4000/api'; // In development
+    
+    // For Netlify deployments, use the Netlify Function
+    if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
+      return '/.netlify/functions/api-proxy';
+    }
+    
+    // For production web environment, use the environment variable
+    if (process.env.NEXT_PUBLIC_BACKEND_URL) {
+      return `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`;
+    }
+    
+    // In web development environment, use a relative path without trailing slash
+    return '/api';
+  };
+  
+  // Function to handle failed requests with retries
+  const apiRequestWithRetry = async (url: string, method: string, data: any, retries = 3, delay = 1000) => {
+    try {
+      return await axios({
+        url,
+        method,
+        data,
+        timeout: 30000, // 30 second timeout
+      });
+    } catch (error) {
+      if (retries > 0) {
+        console.log(`Request failed, retrying... (${retries} attempts left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return apiRequestWithRetry(url, method, data, retries - 1, delay * 1.5);
+      }
+      throw error;
+    }
   };
   
   // Upload and compress a single file
@@ -126,8 +197,13 @@ export default function CompressorClient() {
       try {
         await axios.get(`${apiBaseUrl}/health`);
       } catch (healthErr) {
-        console.error('Backend server not available:', healthErr);
-        throw new Error('Backend server not responding. Please make sure it is running on port 4000.');
+        // Try alternative endpoint format without trailing slash
+        try {
+          await axios.get(`${apiBaseUrl.replace(/\/$/, '')}/health`);
+        } catch (err) {
+          console.error('Backend server not available:', healthErr);
+          throw new Error('Backend server not responding. Please make sure it is running on port 4000.');
+        }
       }
       
       // Check file type compatibility before sending
@@ -303,17 +379,47 @@ export default function CompressorClient() {
 
   // Download ZIP
   const downloadZip = async () => {
-    const filePaths = results.map(r => r.outputPath);
-    const apiBaseUrl = getApiBaseUrl();
-    const baseUrl = apiBaseUrl.replace('/api', '');
-    const res = await axios.post(`${apiBaseUrl}/download/zip`, { files: filePaths }, { responseType: 'blob' });
-    const url = window.URL.createObjectURL(new Blob([res.data]));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'compressed.zip');
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    try {
+      const filePaths = results.map(r => r.outputPath);
+      const apiBaseUrl = getApiBaseUrl();
+      
+      // For Netlify deployments, use the API proxy
+      let zipEndpoint;
+      if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
+        zipEndpoint = `/.netlify/functions/api-proxy/download/zip`;
+      } else {
+        zipEndpoint = `${apiBaseUrl}/download/zip`;
+      }
+      
+      // Use retry logic for better reliability
+      const res = await apiRequestWithRetry(
+        zipEndpoint, 
+        'post', 
+        { files: filePaths }, 
+        3, // 3 retries
+        1500 // 1.5 second initial delay
+      );
+      
+      // Create a blob from the response data
+      const blob = new Blob([res.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create and trigger download link
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'compressed_media.zip');
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+        link.remove();
+      }, 100);
+    } catch (err) {
+      console.error('Error downloading ZIP file:', err);
+      alert('Failed to download ZIP file. Please try again or download files individually.');
+    }
   };
   
   // No codec checking needed since we only support H.264 now
@@ -579,8 +685,17 @@ export default function CompressorClient() {
                                     onClick={(e) => {
                                       // Force download by programmatically creating an anchor with download attribute
                                       e.preventDefault();
+                                      
+                                      // For Netlify deployments, use the API proxy
+                                      let downloadUrl;
+                                      if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
+                                        downloadUrl = `/.netlify/functions/api-proxy/download/file?filename=${encodeURIComponent(result.outputName)}`;
+                                      } else {
+                                        downloadUrl = `${getApiBaseUrl().replace('/api', '')}/uploads/${result.outputName}`;
+                                      }
+                                      
                                       const link = document.createElement('a');
-                                      link.href = `${getApiBaseUrl().replace('/api', '')}/uploads/${result.outputName}`;
+                                      link.href = downloadUrl;
                                       link.setAttribute('download', result.outputName);
                                       document.body.appendChild(link);
                                       link.click();
@@ -649,8 +764,17 @@ export default function CompressorClient() {
                               onClick={(e) => {
                                 // Force download by programmatically creating an anchor with download attribute
                                 e.preventDefault();
+                                
+                                // For Netlify deployments, use the API proxy
+                                let downloadUrl;
+                                if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
+                                  downloadUrl = `/.netlify/functions/api-proxy/download/file?filename=${encodeURIComponent(r.outputName)}`;
+                                } else {
+                                  downloadUrl = `${getApiBaseUrl().replace('/api', '')}/uploads/${r.outputName}`;
+                                }
+                                
                                 const link = document.createElement('a');
-                                link.href = `${getApiBaseUrl().replace('/api', '')}/uploads/${r.outputName}`;
+                                link.href = downloadUrl;
                                 link.setAttribute('download', r.outputName);
                                 document.body.appendChild(link);
                                 link.click();

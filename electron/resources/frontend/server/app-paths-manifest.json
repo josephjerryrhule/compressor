@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/compress/image/route": "app/api/compress/image/route.js",
+  "/api/compress/video/route": "app/api/compress/video/route.js",
+  "/api/download/zip/route": "app/api/download/zip/route.js",
+  "/api/health/route": "app/api/health/route.js",
+  "/api/test/route": "app/api/test/route.js",
+  "/uploads/[...filename]/route": "app/uploads/[...filename]/route.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
+}

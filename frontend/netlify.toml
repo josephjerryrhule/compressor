@@ -1,0 +1,40 @@
+[build]
+  command = "npm run build"
+  publish = "out"
+  functions = "netlify/functions"
+  
+[build.environment]
+  NEXT_PUBLIC_BACKEND_URL = "https://api.mediacompressor.com"
+  BACKEND_URL = "https://api.mediacompressor.com"
+  NODE_VERSION = "20"
+  NPM_VERSION = "10"
+
+# Redirect /api/* requests to our Netlify function
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api-proxy/:splat"
+  status = 200
+  force = true
+
+# Redirect uploads to file-download function
+[[redirects]]
+  from = "/uploads/*"
+  to = "/.netlify/functions/file-download?filename=:splat"
+  status = 200
+  force = true
+
+# Redirect all requests to index.html for SPA routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Add security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' https://api.mediacompressor.com /.netlify/functions/*; font-src 'self'; object-src 'none'; media-src 'self' blob:; worker-src 'self' blob:;"
