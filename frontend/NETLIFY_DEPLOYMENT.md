@@ -16,7 +16,16 @@ Before deploying, ensure your backend API is deployed and accessible. Then updat
 
 - `NEXT_PUBLIC_BACKEND_URL`: Set to the URL of your deployed backend API
 
-### 2. Deploy to Netlify
+### 2. Netlify Functions
+
+The application uses Netlify Functions for proxying API requests and file downloads:
+
+- `api-proxy.js`: Proxies API requests to the backend server
+- `download-proxy.js`: Handles file downloads from the backend server
+
+These functions are located in the `netlify/functions` directory.
+
+### 3. Deploy to Netlify
 
 #### Option 1: Deploy via Netlify UI
 

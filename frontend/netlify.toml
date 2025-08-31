@@ -19,7 +19,7 @@
 # Redirect uploads to file-download function
 [[redirects]]
   from = "/uploads/*"
-  to = "/.netlify/functions/file-download?filename=:splat"
+  to = "/.netlify/functions/download-proxy?filename=:splat"
   status = 200
   force = true
 
