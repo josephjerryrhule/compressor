@@ -680,27 +680,8 @@ export default function CompressorClient() {
                                     <span>{formatFileSize(result.compressedSize)}</span>
                                   </div>
                                   <a 
-                                    href={`${getApiBaseUrl().replace('/api', '')}/uploads/${result.outputName}`} 
+                                    href={`/.netlify/functions/download-proxy?filename=${encodeURIComponent(result.outputName)}`}
                                     download={result.outputName}
-                                    onClick={(e) => {
-                                      // Force download by programmatically creating an anchor with download attribute
-                                      e.preventDefault();
-                                      
-                                      // For Netlify deployments, use the API proxy
-                                      let downloadUrl;
-                                      if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
-                                        downloadUrl = `/.netlify/functions/api-proxy/download/file?filename=${encodeURIComponent(result.outputName)}`;
-                                      } else {
-                                        downloadUrl = `${getApiBaseUrl().replace('/api', '')}/uploads/${result.outputName}`;
-                                      }
-                                      
-                                      const link = document.createElement('a');
-                                      link.href = downloadUrl;
-                                      link.setAttribute('download', result.outputName);
-                                      document.body.appendChild(link);
-                                      link.click();
-                                      document.body.removeChild(link);
-                                    }}
                                     className="block text-center text-white bg-blue-600 text-xs py-1 px-2 mt-1 hover:bg-blue-700"
                                   >
                                     Download
@@ -759,27 +740,8 @@ export default function CompressorClient() {
                               </div>
                             </div>
                             <a 
-                              href={`${getApiBaseUrl().replace('/api', '')}/uploads/${r.outputName}`} 
+                              href={`/.netlify/functions/download-proxy?filename=${encodeURIComponent(r.outputName)}`}
                               download={r.outputName}
-                              onClick={(e) => {
-                                // Force download by programmatically creating an anchor with download attribute
-                                e.preventDefault();
-                                
-                                // For Netlify deployments, use the API proxy
-                                let downloadUrl;
-                                if (typeof window !== 'undefined' && window.location.hostname.includes('netlify.app')) {
-                                  downloadUrl = `/.netlify/functions/api-proxy/download/file?filename=${encodeURIComponent(r.outputName)}`;
-                                } else {
-                                  downloadUrl = `${getApiBaseUrl().replace('/api', '')}/uploads/${r.outputName}`;
-                                }
-                                
-                                const link = document.createElement('a');
-                                link.href = downloadUrl;
-                                link.setAttribute('download', r.outputName);
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                              }}
                               className="flex-shrink-0 flex items-center text-xs bg-blue-600 text-white py-1 px-2 hover:bg-blue-700 transition-colors"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
