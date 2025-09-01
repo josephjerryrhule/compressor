@@ -23,6 +23,20 @@
   status = 200
   force = true
 
+# Direct access to the download-proxy function
+[[redirects]]
+  from = "/.netlify/functions/download-proxy"
+  to = "/.netlify/functions/download-proxy"
+  status = 200
+  force = true
+
+# Direct access to the static-file function
+[[redirects]]
+  from = "/.netlify/functions/static-file"
+  to = "/.netlify/functions/static-file"
+  status = 200
+  force = true
+
 # Redirect all requests to index.html for SPA routing
 [[redirects]]
   from = "/*"

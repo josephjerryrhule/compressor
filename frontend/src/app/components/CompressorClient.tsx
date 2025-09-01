@@ -682,6 +682,42 @@ export default function CompressorClient() {
                                   <a 
                                     href={`/.netlify/functions/download-proxy?filename=${encodeURIComponent(result.outputName)}`}
                                     download={result.outputName}
+                                    onClick={(e) => {
+                                      // Handle the download with error fallback
+                                      e.preventDefault();
+                                      const downloadUrl = `/.netlify/functions/download-proxy?filename=${encodeURIComponent(result.outputName)}`;
+                                      const fallbackUrl = `/.netlify/functions/static-file?filename=${encodeURIComponent(result.outputName)}`;
+                                      
+                                      // Try to download with fetch first
+                                      fetch(downloadUrl)
+                                        .then(response => {
+                                          if (!response.ok) {
+                                            throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                                          }
+                                          return response.blob();
+                                        })
+                                        .then(blob => {
+                                          // Create and trigger a download link
+                                          const url = window.URL.createObjectURL(blob);
+                                          const link = document.createElement('a');
+                                          link.href = url;
+                                          link.setAttribute('download', result.outputName);
+                                          document.body.appendChild(link);
+                                          link.click();
+                                          
+                                          // Clean up
+                                          setTimeout(() => {
+                                            window.URL.revokeObjectURL(url);
+                                            link.remove();
+                                          }, 100);
+                                        })
+                                        .catch(error => {
+                                          console.error('Download error:', error);
+                                          // Try the fallback
+                                          console.log('Trying fallback download method...');
+                                          window.location.href = fallbackUrl;
+                                        });
+                                    }}
                                     className="block text-center text-white bg-blue-600 text-xs py-1 px-2 mt-1 hover:bg-blue-700"
                                   >
                                     Download
@@ -742,6 +778,42 @@ export default function CompressorClient() {
                             <a 
                               href={`/.netlify/functions/download-proxy?filename=${encodeURIComponent(r.outputName)}`}
                               download={r.outputName}
+                              onClick={(e) => {
+                                // Handle the download with error fallback
+                                e.preventDefault();
+                                const downloadUrl = `/.netlify/functions/download-proxy?filename=${encodeURIComponent(r.outputName)}`;
+                                const fallbackUrl = `/.netlify/functions/static-file?filename=${encodeURIComponent(r.outputName)}`;
+                                
+                                // Try to download with fetch first
+                                fetch(downloadUrl)
+                                  .then(response => {
+                                    if (!response.ok) {
+                                      throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+                                    }
+                                    return response.blob();
+                                  })
+                                  .then(blob => {
+                                    // Create and trigger a download link
+                                    const url = window.URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = url;
+                                    link.setAttribute('download', r.outputName);
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    
+                                    // Clean up
+                                    setTimeout(() => {
+                                      window.URL.revokeObjectURL(url);
+                                      link.remove();
+                                    }, 100);
+                                  })
+                                  .catch(error => {
+                                    console.error('Download error:', error);
+                                    // Try the fallback
+                                    console.log('Trying fallback download method...');
+                                    window.location.href = fallbackUrl;
+                                  });
+                              }}
                               className="flex-shrink-0 flex items-center text-xs bg-blue-600 text-white py-1 px-2 hover:bg-blue-700 transition-colors"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
